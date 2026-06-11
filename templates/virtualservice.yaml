@@ -14,9 +14,12 @@
   {{- if .Values.telegramWebhook.enabled }}
     {{- $servicePorts = append $servicePorts (dict "name" "telegram-webhook" "port" (.Values.telegramWebhook.port | int) "targetPort" (.Values.telegramWebhook.port | int) "containerPort" (.Values.telegramWebhook.port | int) "protocol" "TCP") }}
   {{- end }}
+  {{- if .Values.dashboard.enabled }}
+    {{- $servicePorts = append $servicePorts (dict "name" "dashboard" "port" (.Values.dashboard.port | int) "targetPort" (.Values.dashboard.port | int) "containerPort" (.Values.dashboard.port | int) "protocol" "TCP") }}
+  {{- end }}
 {{- end }}
 {{- if eq (len $servicePorts) 0 }}
-{{- fail "virtualService.enabled=true requires either explicit service.ports entries or enabled apiServer/webhook/telegramWebhook ports" }}
+{{- fail "virtualService.enabled=true requires either explicit service.ports entries or enabled apiServer/webhook/telegramWebhook/dashboard ports" }}
 {{- end }}
 {{- if eq (len .Values.virtualService.gateways) 0 }}
 {{- fail "virtualService.enabled=true requires at least one entry in virtualService.gateways" }}

@@ -16,7 +16,7 @@ This chart packages Hermes Agent for Kubernetes with cloud-native defaults, expl
 ## What this chart is optimized for
 
 - **State-safe Hermes deployments**: `replicaCount: 1` plus `strategy.type: Recreate` are enforced when persistence is enabled so `HERMES_HOME` is not shared unsafely.
-- **Gateway-first runtime**: the default command is `hermes gateway run`, with optional API server, webhook, and Telegram webhook listeners.
+- **Gateway-first runtime**: the default command is `hermes gateway run`, with optional API server, webhook, Telegram webhook, and web dashboard listeners.
 - **Cloud-native integration**: optional Service, Ingress, Istio `VirtualService`, RBAC, NetworkPolicy, PDB, and arbitrary `extraObjects`.
 - **Composable secrets and bootstrap**: use chart-managed Secret/ConfigMap resources, or reuse externally managed ones with `secrets.existingSecret` and `bootstrap.existingConfigMap`.
 - **Tenant-scoped operation**: the chart is best run as one Helm release per tenant in direct mode, or one tenant custom resource per tenant boundary in operator-ready mode.
@@ -242,7 +242,41 @@ service:
   enabled: true
 ```
 
-If `service.ports` is empty, the chart automatically derives Service ports from enabled listeners (`apiServer`, `webhook`, and `telegramWebhook`). Keep explicit `service.ports` only when you need custom front-door mappings.
+If `service.ports` is empty, the chart automatically derives Service ports from enabled listeners (`apiServer`, `webhook`, `telegramWebhook`, and `dashboard`). Keep explicit `service.ports` only when you need custom front-door mappings.
+
+### Web dashboard
+
+Hermes ships a browser-based admin dashboard (configuration, API keys, MCP servers, sessions, logs, cron, skills). In the official image it runs as a supervised service **inside the same container** as the gateway, so enabling it requires no sidecar or command change:
+
+```yaml
+dashboard:
+  enabled: true
+  publicUrl: https://hermes-dashboard.tenant-a.example.com
+  auth:
+    basic:
+      username: admin
+
+secrets:
+  HERMES_DASHBOARD_BASIC_AUTH_PASSWORD_HASH: "<scrypt hash>"
+  HERMES_DASHBOARD_BASIC_AUTH_SECRET: "<32+ random bytes>"
+
+service:
+  enabled: true
+```
+
+Three auth providers are supported; configure exactly one:
+
+- **Basic auth**: set `dashboard.auth.basic.username` plus `secrets.HERMES_DASHBOARD_BASIC_AUTH_PASSWORD` or (preferred) `secrets.HERMES_DASHBOARD_BASIC_AUTH_PASSWORD_HASH`. Set `secrets.HERMES_DASHBOARD_BASIC_AUTH_SECRET` so sessions survive gateway restarts.
+- **Nous Portal OAuth**: set `dashboard.auth.oauth.clientId` (format `agent:{id}`, provisioned with `hermes dashboard register`).
+- **Self-hosted OIDC**: set `dashboard.auth.oidc.issuer` and `dashboard.auth.oidc.clientId` (public PKCE client); `scopes` defaults to `openid profile email`.
+
+Key notes:
+
+- The chart **fails to render** when `dashboard.enabled=true` without an auth provider, unless you explicitly set `dashboard.insecure=true` or secrets are managed externally (`secrets.existingSecret` / `externalSecret.enabled`), where the chart cannot verify auth material.
+- `dashboard.insecure=true` serves model keys and session data unauthenticated. Reserve it for `kubectl port-forward` access on trusted clusters; never combine it with Service/Ingress exposure.
+- Set `dashboard.publicUrl` whenever OAuth/OIDC runs behind ingress or another proxy so callbacks resolve correctly.
+- The dashboard and gateway share `HERMES_HOME`: dashboard config edits apply to **new** agent sessions; gateway-level settings (adapters, tokens, ports) need a gateway restart, which the dashboard's System page can trigger without restarting the pod.
+- **`bootstrap.overwrite=true` (the default) re-copies the Helm-rendered `config.yaml` over the persistent volume on every pod restart, discarding dashboard-made config edits.** Set `bootstrap.overwrite=false` if the dashboard should own configuration; see [Runtime and bootstrap](#runtime-and-bootstrap).
 
 ### Ingress controller pattern
 
@@ -327,6 +361,7 @@ When `bootstrap.existingConfigMap` is set, the referenced ConfigMap must contain
 - `serviceAccount.automountServiceAccountToken` defaults to `false`
 - Pod and container security contexts default to non-root execution, dropped Linux capabilities, and `RuntimeDefault` seccomp
 - Enable `service.enabled` only when you actually need network exposure
+- The web dashboard requires an auth provider unless `dashboard.insecure=true` is set explicitly; the insecure mode exposes model keys and session data to anyone who can reach the port
 - `values.schema.json` validates persistence safety, ingress/service prerequisites, Telegram webhook requirements, and Istio host/gateway inputs before templates render
 
 ## Verification
@@ -339,6 +374,7 @@ helm lint . -f ci/test-values.yaml
 helm lint . -f ci/existing-claim-values.yaml
 helm lint . -f ci/external-bootstrap-values.yaml
 helm lint . -f ci/default-service-ports-values.yaml
+helm lint . -f ci/dashboard-values.yaml
 helm lint . -f ci/external-secret-values.yaml
 helm lint . -f ci/tenant-isolation-values.yaml
 helm lint . -f ci/operator-values.yaml
@@ -347,6 +383,7 @@ helm template hermes . -f ci/test-values.yaml
 helm template hermes . -f ci/existing-claim-values.yaml
 helm template hermes . -f ci/external-bootstrap-values.yaml
 helm template hermes . -f ci/default-service-ports-values.yaml
+helm template hermes . -f ci/dashboard-values.yaml
 helm template hermes . -f ci/external-secret-values.yaml
 helm template hermes . -f ci/tenant-isolation-values.yaml
 helm template hermes . --include-crds -f ci/operator-values.yaml

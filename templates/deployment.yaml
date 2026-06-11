@@ -3,6 +3,7 @@
 {{- $mountPath := .Values.persistence.mountPath -}}
 {{- $serviceEnabled := .Values.service.enabled -}}
 {{- $apiServerEnabled := .Values.apiServer.enabled -}}
+{{- $dashboardEnabled := .Values.dashboard.enabled -}}
 {{- $servicePorts := include "hermes-agent.servicePorts" . | fromJsonArray -}}
 {{- $affinity := deepCopy (.Values.affinity | default dict) -}}
 {{- $npmEnabled := gt (len .Values.npmPackages) 0 -}}
@@ -33,6 +34,17 @@
 {{- end }}
 {{- if and .Values.telegramWebhook.enabled (not $secretManagedExternally) (eq (printf "%v" .Values.secrets.TELEGRAM_BOT_TOKEN) "") }}
 {{- fail "telegramWebhook.enabled requires secrets.TELEGRAM_BOT_TOKEN when neither secrets.existingSecret nor externalSecret.enabled is set" }}
+{{- end }}
+{{- $dashboardBasicConfigured := and (ne (trim .Values.dashboard.auth.basic.username) "") (or (ne (printf "%v" .Values.secrets.HERMES_DASHBOARD_BASIC_AUTH_PASSWORD) "") (ne (printf "%v" .Values.secrets.HERMES_DASHBOARD_BASIC_AUTH_PASSWORD_HASH) "")) -}}
+{{- $dashboardOauthConfigured := ne (trim .Values.dashboard.auth.oauth.clientId) "" -}}
+{{- $dashboardOidcIssuerSet := ne (trim .Values.dashboard.auth.oidc.issuer) "" -}}
+{{- $dashboardOidcClientSet := ne (trim .Values.dashboard.auth.oidc.clientId) "" -}}
+{{- $dashboardOidcConfigured := and $dashboardOidcIssuerSet $dashboardOidcClientSet -}}
+{{- if and $dashboardEnabled (or $dashboardOidcIssuerSet $dashboardOidcClientSet) (not $dashboardOidcConfigured) }}
+{{- fail "dashboard.auth.oidc requires both dashboard.auth.oidc.issuer and dashboard.auth.oidc.clientId" }}
+{{- end }}
+{{- if and $dashboardEnabled (not .Values.dashboard.insecure) (not $secretManagedExternally) (not (or $dashboardBasicConfigured $dashboardOauthConfigured $dashboardOidcConfigured)) }}
+{{- fail "dashboard.enabled requires an auth provider (dashboard.auth.basic.username plus secrets.HERMES_DASHBOARD_BASIC_AUTH_PASSWORD or HERMES_DASHBOARD_BASIC_AUTH_PASSWORD_HASH, dashboard.auth.oauth.clientId, or dashboard.auth.oidc.issuer+clientId) unless dashboard.insecure=true or secrets are managed externally" }}
 {{- end }}
 {{- if and .Values.tenantIsolation.enabled (not .Values.tenant.id) }}
 {{- fail "tenantIsolation.enabled=true requires tenant.id" }}
@@ -223,6 +235,46 @@ spec:
             - name: TELEGRAM_WEBHOOK_PORT
               value: {{ .Values.telegramWebhook.port | quote }}
             {{- end }}
+            {{- if $dashboardEnabled }}
+            - name: HERMES_DASHBOARD
+              value: "1"
+            - name: HERMES_DASHBOARD_HOST
+              value: {{ .Values.dashboard.host | quote }}
+            - name: HERMES_DASHBOARD_PORT
+              value: {{ .Values.dashboard.port | quote }}
+            {{- with .Values.dashboard.publicUrl }}
+            - name: HERMES_DASHBOARD_PUBLIC_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if .Values.dashboard.insecure }}
+            - name: HERMES_DASHBOARD_INSECURE
+              value: "1"
+            {{- end }}
+            {{- with .Values.dashboard.auth.basic.username }}
+            - name: HERMES_DASHBOARD_BASIC_AUTH_USERNAME
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.dashboard.auth.basic.ttlSeconds }}
+            - name: HERMES_DASHBOARD_BASIC_AUTH_TTL_SECONDS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.dashboard.auth.oauth.clientId }}
+            - name: HERMES_DASHBOARD_OAUTH_CLIENT_ID
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.dashboard.auth.oidc.issuer }}
+            - name: HERMES_DASHBOARD_OIDC_ISSUER
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.dashboard.auth.oidc.clientId }}
+            - name: HERMES_DASHBOARD_OIDC_CLIENT_ID
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.dashboard.auth.oidc.scopes }}
+            - name: HERMES_DASHBOARD_OIDC_SCOPES
+              value: {{ . | quote }}
+            {{- end }}
+            {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -240,7 +292,7 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}
-          {{- if or (and $serviceEnabled (gt (len $servicePorts) 0)) $apiServerEnabled }}
+          {{- if or (and $serviceEnabled (gt (len $servicePorts) 0)) $apiServerEnabled $dashboardEnabled }}
           ports:
             {{- if $serviceEnabled }}
             {{- range $i, $port := $servicePorts }}
@@ -248,10 +300,17 @@ spec:
               containerPort: {{- if hasKey $port "containerPort" }} {{ $port.containerPort | int }}{{- else if and (hasKey $port "targetPort") (not (kindIs "string" $port.targetPort)) }} {{ $port.targetPort | int }}{{- else }} {{ $port.port | int }}{{- end }}
               protocol: {{ default "TCP" $port.protocol }}
             {{- end }}
-            {{- else if $apiServerEnabled }}
+            {{- else }}
+            {{- if $apiServerEnabled }}
             - name: api-server
               containerPort: {{ .Values.apiServer.port }}
               protocol: TCP
+            {{- end }}
+            {{- if $dashboardEnabled }}
+            - name: dashboard
+              containerPort: {{ .Values.dashboard.port }}
+              protocol: TCP
+            {{- end }}
             {{- end }}
           {{- end }}
           {{- with .Values.probes.liveness }}

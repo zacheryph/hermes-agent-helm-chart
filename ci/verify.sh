@@ -54,6 +54,7 @@ pass helm lint . -f ci/test-values.yaml
 pass helm lint . -f ci/existing-claim-values.yaml
 pass helm lint . -f ci/external-bootstrap-values.yaml
 pass helm lint . -f ci/default-service-ports-values.yaml
+pass helm lint . -f ci/dashboard-values.yaml
 pass helm lint . -f ci/external-secret-values.yaml
 pass helm lint . -f ci/tenant-isolation-values.yaml
 pass helm lint . -f ci/operator-values.yaml
@@ -62,6 +63,7 @@ pass helm template hermes . -f ci/test-values.yaml >"$TMP_DIR/test-values.yaml"
 pass helm template hermes . -f ci/existing-claim-values.yaml >"$TMP_DIR/existing-claim.yaml"
 pass helm template hermes . -f ci/external-bootstrap-values.yaml >"$TMP_DIR/external-bootstrap.yaml"
 pass helm template hermes . -f ci/default-service-ports-values.yaml >"$TMP_DIR/default-service-ports.yaml"
+pass helm template hermes . -f ci/dashboard-values.yaml >"$TMP_DIR/dashboard.yaml"
 pass helm template hermes . -f ci/external-secret-values.yaml >"$TMP_DIR/external-secret.yaml"
 pass helm template hermes . -f ci/tenant-isolation-values.yaml >"$TMP_DIR/tenant-isolation.yaml"
 pass helm template hermes . -f ci/operator-values.yaml >"$TMP_DIR/operator.yaml"
@@ -89,7 +91,33 @@ expect_render_contains \
   "default service-port fixture renders telegram-webhook port" \
   'name: telegram-webhook' \
   "$TMP_DIR/default-service-ports.yaml"
+expect_render_contains \
+  "default service-port fixture renders dashboard port" \
+  'name: dashboard' \
+  "$TMP_DIR/default-service-ports.yaml"
 echo "PASS: default service-port fixture auto-derives common Hermes listener ports"
+
+expect_render_contains \
+  "dashboard fixture enables the supervised dashboard" \
+  'name: HERMES_DASHBOARD' \
+  "$TMP_DIR/dashboard.yaml"
+expect_render_contains \
+  "dashboard fixture renders the dashboard service port" \
+  'name: dashboard' \
+  "$TMP_DIR/dashboard.yaml"
+expect_render_contains \
+  "dashboard fixture renders the basic auth username" \
+  'name: HERMES_DASHBOARD_BASIC_AUTH_USERNAME' \
+  "$TMP_DIR/dashboard.yaml"
+expect_render_contains \
+  "dashboard fixture stores the basic auth password hash in the Secret" \
+  'HERMES_DASHBOARD_BASIC_AUTH_PASSWORD_HASH' \
+  "$TMP_DIR/dashboard.yaml"
+if grep -q 'HERMES_DASHBOARD_INSECURE' "$TMP_DIR/dashboard.yaml"; then
+  echo "FAIL: dashboard fixture must not render the insecure flag"
+  exit 1
+fi
+echo "PASS: dashboard fixture renders authenticated dashboard exposure"
 
 expect_render_contains \
   "external secret fixture renders ExternalSecret apiVersion" \
@@ -157,35 +185,45 @@ echo "PASS: operator fixture includes the CRD when rendered with --include-crds"
 
 expect_fail \
   "telegram webhook URL required" \
-  "telegramWebhook.url: String length must be greater than or equal to 1" \
+  "'/telegramWebhook/url': minLength: got 0, want 1" \
   helm lint . --set telegramWebhook.enabled=true
 
 expect_fail \
+  "dashboard requires an auth provider" \
+  "dashboard.enabled requires an auth provider" \
+  helm template hermes . --set dashboard.enabled=true
+
+expect_fail \
+  "dashboard oidc requires issuer and clientId together" \
+  "dashboard.auth.oidc requires both" \
+  helm template hermes . --set dashboard.enabled=true --set dashboard.auth.oidc.issuer=https://id.example.test
+
+expect_fail \
   "service exposure requires ports or enabled endpoints" \
-  "service.ports: Array must have at least 1 items" \
+  "'/service/ports': minItems: got 0, want 1" \
   helm lint . -f ci/negative-service-values.yaml
 
 expect_fail \
   "persistent replicas limited to one" \
-  "replicaCount: replicaCount does not match: 1" \
+  "'/replicaCount': value must be 1" \
   helm lint . -f ci/negative-persistent-replicas-values.yaml
 
 expect_fail \
   "virtual service gateways required" \
-  "virtualService.gateways: Array must have at least 1 items" \
+  "'/virtualService/gateways': minItems: got 0, want 1" \
   helm lint . --set service.enabled=true --set apiServer.enabled=true --set virtualService.enabled=true
 
 expect_fail \
   "external secret store reference required" \
-  "externalSecret.secretStoreRef.name" \
+  "'/externalSecret/secretStoreRef/name': minLength: got 0, want 1" \
   helm lint . -f ci/external-secret-values.yaml --set externalSecret.secretStoreRef.name=
 
 expect_fail \
   "tenant isolation requires tenant id" \
-  "tenant.id" \
+  "'/tenant/id': minLength: got 0, want 1" \
   helm lint . -f ci/tenant-isolation-values.yaml --set tenant.id=
 
 expect_fail \
   "operator mode requires controller class" \
-  "operator.controllerClass" \
+  "'/operator/controllerClass': minLength: got 0, want 1" \
   helm lint . -f ci/operator-values.yaml --set operator.controllerClass=

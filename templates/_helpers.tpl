@@ -97,6 +97,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
   {{- if .Values.telegramWebhook.enabled -}}
     {{- $ports = append $ports (dict "name" "telegram-webhook" "port" (.Values.telegramWebhook.port | int) "targetPort" (.Values.telegramWebhook.port | int) "containerPort" (.Values.telegramWebhook.port | int) "protocol" "TCP") -}}
   {{- end -}}
+  {{- if .Values.dashboard.enabled -}}
+    {{- $ports = append $ports (dict "name" "dashboard" "port" (.Values.dashboard.port | int) "targetPort" (.Values.dashboard.port | int) "containerPort" (.Values.dashboard.port | int) "protocol" "TCP") -}}
+  {{- end -}}
 {{- end -}}
 {{- $ports | toJson -}}
 {{- end -}}
@@ -106,6 +109,6 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if and .Values.service.enabled (gt (len $servicePorts) 0) -}}
 {{- (index $servicePorts 0).port -}}
 {{- else -}}
-{{- fail "service.enabled=true with either explicit service.ports entries or enabled apiServer/webhook/telegramWebhook ports is required for ingress, httpRoute, or virtualService routing" -}}
+{{- fail "service.enabled=true with either explicit service.ports entries or enabled apiServer/webhook/telegramWebhook/dashboard ports is required for ingress, httpRoute, or virtualService routing" -}}
 {{- end -}}
 {{- end -}}

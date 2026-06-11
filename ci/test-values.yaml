@@ -16,6 +16,14 @@ telegramWebhook:
   url: https://hermes.example.test/telegram
   port: 8443
 
+dashboard:
+  enabled: true
+  port: 9119
+  auth:
+    oidc:
+      issuer: https://id.example.test
+      clientId: hermes-dashboard
+
 serviceAccount:
   create: true
   automountServiceAccountToken: true
@@ -53,6 +61,10 @@ service:
       port: 8443
       targetPort: 8443
       containerPort: 8443
+    - name: dashboard
+      port: 9119
+      targetPort: 9119
+      containerPort: 9119
 
 ingress:
   enabled: true

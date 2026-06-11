@@ -118,6 +118,9 @@ secrets:
   GROQ_API_KEY: ""
   VOICE_TOOLS_OPENAI_KEY: ""
   API_SERVER_KEY: ""
+  HERMES_DASHBOARD_BASIC_AUTH_PASSWORD: ""
+  HERMES_DASHBOARD_BASIC_AUTH_PASSWORD_HASH: ""
+  HERMES_DASHBOARD_BASIC_AUTH_SECRET: ""
   TELEGRAM_BOT_TOKEN: ""
   DISCORD_BOT_TOKEN: ""
   SLACK_BOT_TOKEN: ""
@@ -205,6 +208,35 @@ telegramWebhook:
   url: ""
   port: 8443
 
+# Built-in web dashboard. The official image runs it as a supervised service
+# alongside the gateway in the same container; both share HERMES_HOME, so
+# dashboard config edits apply to new agent sessions. NOTE: dashboard config
+# edits are overwritten on pod restart unless bootstrap.overwrite=false.
+dashboard:
+  enabled: false
+  host: "0.0.0.0"
+  port: 9119
+  # Public URL used for OAuth/OIDC callbacks when the dashboard sits behind
+  # ingress or another proxy.
+  publicUrl: ""
+  # Disables the upstream auth gate. DANGEROUS: the dashboard then serves
+  # model keys and session data unauthenticated. Only for port-forward or
+  # trusted-network access; never combine with service/ingress exposure.
+  insecure: false
+  auth:
+    basic:
+      username: ""
+      # Session TTL in seconds. Leave null to use the image default (43200).
+      ttlSeconds: null
+    oauth:
+      # Nous Portal public client id, format "agent:{id}".
+      clientId: ""
+    oidc:
+      issuer: ""
+      clientId: ""
+      # Leave empty to use the upstream default "openid profile email".
+      scopes: ""
+
 serviceAccount:
   create: true
   name: ""
@@ -242,8 +274,8 @@ service:
   internalTrafficPolicy: ""
   loadBalancerSourceRanges: []
   # When empty, the chart automatically exposes enabled apiServer/webhook/
-  # telegramWebhook listeners using their configured port values. Explicit
-  # entries override the defaults.
+  # telegramWebhook/dashboard listeners using their configured port values.
+  # Explicit entries override the defaults.
   # ports:
   #   - name: api-server
   #     port: 8642

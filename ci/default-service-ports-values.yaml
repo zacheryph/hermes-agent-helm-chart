@@ -13,6 +13,13 @@ telegramWebhook:
   url: https://hermes.example.test/telegram
   port: 8443
 
+dashboard:
+  enabled: true
+  port: 9119
+  auth:
+    oauth:
+      clientId: "agent:test"
+
 secrets:
   API_SERVER_KEY: api-test-key
   TELEGRAM_BOT_TOKEN: bot-test

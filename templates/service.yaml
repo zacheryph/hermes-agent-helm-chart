@@ -11,9 +11,12 @@
   {{- if .Values.telegramWebhook.enabled }}
     {{- $servicePorts = append $servicePorts (dict "name" "telegram-webhook" "port" (.Values.telegramWebhook.port | int) "targetPort" (.Values.telegramWebhook.port | int) "containerPort" (.Values.telegramWebhook.port | int) "protocol" "TCP") }}
   {{- end }}
+  {{- if .Values.dashboard.enabled }}
+    {{- $servicePorts = append $servicePorts (dict "name" "dashboard" "port" (.Values.dashboard.port | int) "targetPort" (.Values.dashboard.port | int) "containerPort" (.Values.dashboard.port | int) "protocol" "TCP") }}
+  {{- end }}
 {{- end }}
 {{- if eq (len $servicePorts) 0 }}
-{{- fail "service.enabled=true requires either at least one entry in service.ports or an enabled apiServer/webhook/telegramWebhook port to expose" }}
+{{- fail "service.enabled=true requires either at least one entry in service.ports or an enabled apiServer/webhook/telegramWebhook/dashboard port to expose" }}
 {{- end }}
 apiVersion: v1
 kind: Service

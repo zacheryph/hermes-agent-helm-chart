@@ -14,9 +14,12 @@
   {{- if .Values.telegramWebhook.enabled }}
     {{- $servicePorts = append $servicePorts (dict "name" "telegram-webhook" "port" (.Values.telegramWebhook.port | int) "targetPort" (.Values.telegramWebhook.port | int) "containerPort" (.Values.telegramWebhook.port | int) "protocol" "TCP") }}
   {{- end }}
+  {{- if .Values.dashboard.enabled }}
+    {{- $servicePorts = append $servicePorts (dict "name" "dashboard" "port" (.Values.dashboard.port | int) "targetPort" (.Values.dashboard.port | int) "containerPort" (.Values.dashboard.port | int) "protocol" "TCP") }}
+  {{- end }}
 {{- end }}
 {{- if eq (len $servicePorts) 0 }}
-{{- fail "ingress.enabled=true requires either explicit service.ports entries or enabled apiServer/webhook/telegramWebhook ports" }}
+{{- fail "ingress.enabled=true requires either explicit service.ports entries or enabled apiServer/webhook/telegramWebhook/dashboard ports" }}
 {{- end }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress

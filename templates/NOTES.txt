@@ -21,6 +21,13 @@ Webhook adapter enabled on port {{ .Values.webhook.port }}
 {{- if .Values.telegramWebhook.enabled }}
 Telegram webhook mode enabled on port {{ .Values.telegramWebhook.port }}
 {{- end }}
+{{- if .Values.dashboard.enabled }}
+Web dashboard enabled on port {{ .Values.dashboard.port }}
+{{- if .Values.dashboard.insecure }}
+WARNING: dashboard.insecure=true disables dashboard authentication. Do not
+expose this port outside the cluster.
+{{- end }}
+{{- end }}
 
 Useful commands:
   kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} -f

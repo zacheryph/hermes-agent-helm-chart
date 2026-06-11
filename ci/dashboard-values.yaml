@@ -1,0 +1,17 @@
+fullnameOverride: hermes-dashboard
+
+dashboard:
+  enabled: true
+  port: 9119
+  publicUrl: https://hermes-dashboard.example.test
+  auth:
+    basic:
+      username: admin
+      ttlSeconds: 3600
+
+secrets:
+  HERMES_DASHBOARD_BASIC_AUTH_PASSWORD_HASH: scrypt-test-hash
+  HERMES_DASHBOARD_BASIC_AUTH_SECRET: dashboard-session-secret
+
+service:
+  enabled: true
