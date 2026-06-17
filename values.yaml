@@ -223,6 +223,18 @@ dashboard:
   # model keys and session data unauthenticated. Only for port-forward or
   # trusted-network access; never combine with service/ingress exposure.
   insecure: false
+  # When true, skips the web UI build step (npm) and serves the pre-built
+  # dist directly. The dashboard runs as a sidecar container, so npm is
+  # typically unavailable — keep this true for container deployments.
+  skipBuild: true
+  # Resource limits for the dashboard sidecar container.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
   auth:
     basic:
       username: ""

@@ -106,6 +106,20 @@
         "insecure": {
           "type": "boolean"
         },
+        "skipBuild": {
+          "type": "boolean"
+        },
+        "resources": {
+          "type": "object",
+          "properties": {
+            "requests": {
+              "type": "object"
+            },
+            "limits": {
+              "type": "object"
+            }
+          }
+        },
         "auth": {
           "type": "object",
           "properties": {

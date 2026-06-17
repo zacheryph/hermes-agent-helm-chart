@@ -235,46 +235,6 @@ spec:
             - name: TELEGRAM_WEBHOOK_PORT
               value: {{ .Values.telegramWebhook.port | quote }}
             {{- end }}
-            {{- if $dashboardEnabled }}
-            - name: HERMES_DASHBOARD
-              value: "1"
-            - name: HERMES_DASHBOARD_HOST
-              value: {{ .Values.dashboard.host | quote }}
-            - name: HERMES_DASHBOARD_PORT
-              value: {{ .Values.dashboard.port | quote }}
-            {{- with .Values.dashboard.publicUrl }}
-            - name: HERMES_DASHBOARD_PUBLIC_URL
-              value: {{ . | quote }}
-            {{- end }}
-            {{- if .Values.dashboard.insecure }}
-            - name: HERMES_DASHBOARD_INSECURE
-              value: "1"
-            {{- end }}
-            {{- with .Values.dashboard.auth.basic.username }}
-            - name: HERMES_DASHBOARD_BASIC_AUTH_USERNAME
-              value: {{ . | quote }}
-            {{- end }}
-            {{- with .Values.dashboard.auth.basic.ttlSeconds }}
-            - name: HERMES_DASHBOARD_BASIC_AUTH_TTL_SECONDS
-              value: {{ . | quote }}
-            {{- end }}
-            {{- with .Values.dashboard.auth.oauth.clientId }}
-            - name: HERMES_DASHBOARD_OAUTH_CLIENT_ID
-              value: {{ . | quote }}
-            {{- end }}
-            {{- with .Values.dashboard.auth.oidc.issuer }}
-            - name: HERMES_DASHBOARD_OIDC_ISSUER
-              value: {{ . | quote }}
-            {{- end }}
-            {{- with .Values.dashboard.auth.oidc.clientId }}
-            - name: HERMES_DASHBOARD_OIDC_CLIENT_ID
-              value: {{ . | quote }}
-            {{- end }}
-            {{- with .Values.dashboard.auth.oidc.scopes }}
-            - name: HERMES_DASHBOARD_OIDC_SCOPES
-              value: {{ . | quote }}
-            {{- end }}
-            {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -292,7 +252,7 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}
-          {{- if or (and $serviceEnabled (gt (len $servicePorts) 0)) $apiServerEnabled $dashboardEnabled }}
+          {{- if or (and $serviceEnabled (gt (len $servicePorts) 0)) $apiServerEnabled }}
           ports:
             {{- if $serviceEnabled }}
             {{- range $i, $port := $servicePorts }}
@@ -306,12 +266,7 @@ spec:
               containerPort: {{ .Values.apiServer.port }}
               protocol: TCP
             {{- end }}
-            {{- if $dashboardEnabled }}
-            - name: dashboard
-              containerPort: {{ .Values.dashboard.port }}
-              protocol: TCP
-            {{- end }}
-            {{- end }}
+          {{- end }}
           {{- end }}
           {{- with .Values.probes.liveness }}
           livenessProbe:
@@ -341,6 +296,115 @@ spec:
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+        {{- if .Values.dashboard.enabled }}
+        - name: dashboard
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            {{- if .Values.command }}
+            {{- toYaml .Values.command | nindent 12 }}
+            {{- else }}
+            - hermes
+            {{- end }}
+          args:
+            - dashboard
+            - --host
+            - {{ .Values.dashboard.host | quote }}
+            - --port
+            - {{ .Values.dashboard.port | quote }}
+            - --no-open
+            - --skip-build
+            {{- if .Values.dashboard.insecure }}
+            - --insecure
+            {{- end }}
+          workingDir: {{ .Values.workingDir }}
+          env:
+            - name: HERMES_HOME
+              value: {{ $mountPath | quote }}
+            - name: HOME
+              value: {{ printf "%s/home" $mountPath | quote }}
+            {{- if $npmEnabled }}
+            - name: PATH
+              value: {{ printf "%s/npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" $mountPath | quote }}
+            {{- end }}
+            {{- range $key, $value := .Values.env }}
+            - name: {{ $key }}
+              value: {{ printf "%v" $value | quote }}
+            {{- end }}
+            {{- with .Values.dashboard.publicUrl }}
+            - name: HERMES_DASHBOARD_PUBLIC_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.dashboard.auth.basic.username }}
+            - name: HERMES_DASHBOARD_BASIC_AUTH_USERNAME
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.dashboard.auth.basic.ttlSeconds }}
+            - name: HERMES_DASHBOARD_BASIC_AUTH_TTL_SECONDS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.dashboard.auth.oauth.clientId }}
+            - name: HERMES_DASHBOARD_OAUTH_CLIENT_ID
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.dashboard.auth.oidc.issuer }}
+            - name: HERMES_DASHBOARD_OIDC_ISSUER
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.dashboard.auth.oidc.clientId }}
+            - name: HERMES_DASHBOARD_OIDC_CLIENT_ID
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.dashboard.auth.oidc.scopes }}
+            - name: HERMES_DASHBOARD_OIDC_SCOPES
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if or .Values.externalSecret.enabled .Values.secrets.existingSecret .Values.extraEnvFrom $hasInlineSecretValues }}
+          envFrom:
+            {{- if or .Values.externalSecret.enabled .Values.secrets.existingSecret }}
+            - secretRef:
+                name: {{ include "hermes-agent.secretName" . }}
+            {{- else }}
+            - secretRef:
+                name: {{ include "hermes-agent.secretName" . }}
+                optional: true
+            {{- end }}
+            {{- with .Values.extraEnvFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          ports:
+            - name: dashboard
+              containerPort: {{ .Values.dashboard.port }}
+              protocol: TCP
+          {{- with .Values.probes.liveness }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.probes.readiness }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.dashboard.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ $mountPath }}
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.browser.shm.enabled }}
+            - name: dshm
+              mountPath: {{ .Values.browser.shm.mountPath }}
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- end }}
         {{- with .Values.extraContainers }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
